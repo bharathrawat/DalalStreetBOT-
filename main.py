@@ -83,7 +83,7 @@ def calculate_rsi(data, period=14):
     loss = (-delta.where(delta < 0, 0)).rolling(period).mean()
     rs = gain / loss
     return 100 - (100 / (1 + rs))
-   def get_signal(symbol, name):
+def get_signal(symbol, name):
     try:
         df = yf.download(symbol, period="3mo", interval="1d", progress=False)
         if df.empty or len(df) < 20:
