@@ -56,13 +56,14 @@ def get_macro_data():
     except:
         data["gold"] = "N/A"
     return data
-    def get_news():
+    
+def get_news():
     news_list = []
     try:
         url = "https://news.google.com/rss/search?q=india+stock+market+nifty&hl=en-IN&gl=IN&ceid=IN:en"
         feed = feedparser.parse(url)
         for entry in feed.entries[:6]:
-            news_list.append(entry.title)
+           news_list.append(entry.title)
     except:
         news_list.append("News fetch failed")
     return news_list
