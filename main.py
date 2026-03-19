@@ -104,15 +104,15 @@ def get_signal(symbol, name):
         signal = "HOLD"
         confidence = 5
         reason = ""
-        if rsi < 35 and price > sma20:
+        if rsi < 45 and price > sma20:
             signal = "BUY"
             confidence = 8
             reason = "RSI oversold + above SMA20"
-        elif rsi < 40 and sma20 > sma50:
+        elif rsi < 50 and sma20 > sma50:
             signal = "BUY"
             confidence = 7
             reason = "RSI low + bullish trend"
-        elif rsi > 70 and price < sma20:
+        elif rsi > 60 and price < sma20:
             signal = "SELL"
             confidence = 8
             reason = "RSI overbought + below SMA20"
