@@ -4,11 +4,13 @@ import yfinance as yf
 import feedparser
 from groq import Groq
 from datetime import datetime
+
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 GROQ_API_KEY = os.environ["GROQ_API_KEY"]
 CHAT_ID = os.environ["CHAT_ID"]
 
 client = Groq(api_key=GROQ_API_KEY)
+
 WATCHLIST = {
     "Nifty 50": "^NSEI",
     "Bank Nifty": "^NSEBANK",
@@ -33,6 +35,7 @@ SECTOR_NEWS_MAP = {
     "pli": "Electronics,Auto",
     "fed": "IT,Metals"
 }
+
 def get_macro_data():
     data = {}
     try:
@@ -56,14 +59,14 @@ def get_macro_data():
     except:
         data["gold"] = "N/A"
     return data
-    
+
 def get_news():
     news_list = []
     try:
         url = "https://news.google.com/rss/search?q=india+stock+market+nifty&hl=en-IN&gl=IN&ceid=IN:en"
         feed = feedparser.parse(url)
         for entry in feed.entries[:6]:
-           news_list.append(entry.title)
+            news_list.append(entry.title)
     except:
         news_list.append("News fetch failed")
     return news_list
@@ -74,7 +77,7 @@ def get_sector_impact(news_list):
         news_lower = news.lower()
         for keyword, sectors in SECTOR_NEWS_MAP.items():
             if keyword in news_lower:
-                impacted.append(f"{keyword} → {sectors}")
+                impacted.append(f"{keyword} -> {sectors}")
     return impacted if impacted else ["No major sector trigger"]
 
 def calculate_rsi(data, period=14):
@@ -83,6 +86,7 @@ def calculate_rsi(data, period=14):
     loss = (-delta.where(delta < 0, 0)).rolling(period).mean()
     rs = gain / loss
     return 100 - (100 / (1 + rs))
+
 def get_signal(symbol, name):
     try:
         df = yf.download(symbol, period="3mo", interval="1d", progress=False)
@@ -128,7 +132,7 @@ def get_signal(symbol, name):
             stoploss = round(price * 1.02, 2)
         else:
             target = stoploss = price
-        arrow = "🟢" if change > 0 else "🔴"
+        arrow = "up" if change > 0 else "down"
         return {
             "name": name,
             "price": price,
@@ -142,7 +146,8 @@ def get_signal(symbol, name):
             "rsi": rsi
         }
     except:
-        return None 
+        return None
+
 def get_ai_analysis(macro, news, signals):
     prompt = f"""
 Tu expert Indian stock market analyst hai.
@@ -173,7 +178,8 @@ def send_telegram(message):
         "text": message,
         "parse_mode": "HTML"
     })
-   def main():
+
+def main():
     macro = get_macro_data()
     news = get_news()
     sector_impact = get_sector_impact(news)
@@ -184,17 +190,17 @@ def send_telegram(message):
         session = "MIDDAY"
     else:
         session = "CLOSING"
-    report = f"<b>📊 DalalStreet {session} REPORT</b>\n"
-    report += "━━━━━━━━━━━━━━━\n\n"
-    report += "<b>🌍 MACRO DATA</b>\n"
-    report += f"🛢 Crude: ${macro.get('crude')}\n"
-    report += f"💵 USD/INR: ₹{macro.get('dollar')}\n"
-    report += f"📊 VIX: {macro.get('vix')}\n"
-    report += f"🥇 Gold: ${macro.get('gold')}\n\n"
-    report += "<b>📰 NEWS IMPACT</b>\n"
+    report = f"<b>DalalStreet {session} REPORT</b>\n"
+    report += "----------------\n\n"
+    report += "<b>MACRO DATA</b>\n"
+    report += f"Crude: ${macro.get('crude')}\n"
+    report += f"USD/INR: {macro.get('dollar')}\n"
+    report += f"VIX: {macro.get('vix')}\n"
+    report += f"Gold: ${macro.get('gold')}\n\n"
+    report += "<b>NEWS IMPACT</b>\n"
     for s in sector_impact[:3]:
-        report += f"• {s}\n"
-    report += "\n<b>📈 SIGNALS</b>\n"
+        report += f"- {s}\n"
+    report += "\n<b>SIGNALS</b>\n"
     signals_text = ""
     for name, symbol in WATCHLIST.items():
         data = get_signal(symbol, name)
@@ -202,18 +208,20 @@ def send_telegram(message):
             continue
         signals_text += f"{name}:{data['signal']} "
         if data['signal'] in ["BUY", "SELL"]:
-            emoji = "🟢" if data['signal'] == "BUY" else "🔴"
-            report += f"{emoji} <b>{data['name']}</b>\n"
-            report += f"💰 ₹{data['price']} ({data['change']:+.2f}%)\n"
-            report += f"🎯 Target: ₹{data['target']}\n"
-            report += f"🛑 SL: ₹{data['stoploss']}\n"
-            report += f"⭐ {data['confidence']}/10 | {data['reason']}\n\n"
-    report += "━━━━━━━━━━━━━━━\n"
-    report += "<b>🤖 AI ANALYSIS</b>\n"
+            report += f"\n<b>{data['name']}</b>\n"
+            report += f"Price: {data['price']} ({data['change']:+.2f}%)\n"
+            report += f"Signal: {data['signal']}\n"
+            report += f"Target: {data['target']}\n"
+            report += f"SL: {data['stoploss']}\n"
+            report += f"Confidence: {data['confidence']}/10\n"
+            report += f"Reason: {data['reason']}\n"
+    report += "\n----------------\n"
+    report += "<b>AI ANALYSIS</b>\n"
     report += get_ai_analysis(macro, news, signals_text)
-    report += "\n\n⚠️ <i>Sirf educational purpose. DYOR.</i>"
+    report += "\n\n<i>Sirf educational purpose. DYOR.</i>"
     send_telegram(report)
     print("Report sent!")
 
 if __name__ == "__main__":
-    main() 
+    main()
+        
