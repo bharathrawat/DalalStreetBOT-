@@ -554,4 +554,4 @@ Concise Hindi mein 4 points:
 4. Risk warning
 """
     response = client.chat.completions.create(
-        model="llama-
+        model="llama-3.3-70b-versatile",
