@@ -555,3 +555,191 @@ Concise Hindi mein 4 points:
 """
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=250
+    )
+    return response.choices[0].message.content
+
+# ============ TELEGRAM ============
+def send_telegram(message):
+    import re
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    resp = requests.post(url, json={
+        "chat_id": CHAT_ID,
+        "text": message,
+        "parse_mode": "HTML"
+    })
+    if resp.status_code != 200:
+        plain = re.sub(r"<[^>]+>", "", message)
+        requests.post(url, json={
+            "chat_id": CHAT_ID,
+            "text": plain
+        })
+
+# ============ MAIN ============
+def main():
+    hour = (datetime.utcnow().hour + 5) % 24
+    macro = get_macro_data()
+    global_mkts = get_global_markets()
+    news = get_news()
+    sector_impact = get_sector_impact(news)
+    fii_dii = get_fii_dii()
+    options = get_options_data()
+    earnings = get_earnings_calendar()
+
+    if hour < 12:
+        session = "MORNING"
+        session_hi = "Subah 9:15 AM"
+    elif hour < 15:
+        session = "MIDDAY"
+        session_hi = "Dopahar 12 PM"
+    else:
+        session = "CLOSING"
+        session_hi = "Shaam 3:30 PM"
+
+    # Pre-market alert
+    if hour == 8:
+        pre = "<b>PRE-MARKET ALERT 8:30 AM</b>\n================================\n"
+        pre += "<b>GIFT NIFTY</b>\n"
+        pre += f"Gift Nifty: {global_mkts.get('Gift Nifty')}\n"
+        pre += "\n<b>OVERNIGHT GLOBAL</b>\n"
+        for name, val in global_mkts.items():
+            pre += f"{name}: {val}\n"
+        pre += f"\n<b>MACRO</b>\nCrude: ${macro.get('crude')} | Gold: ${macro.get('gold')}\n"
+        pre += f"USD/INR: {macro.get('dollar')} | VIX: {macro.get('vix')}\n"
+        pre += f"\n<b>OPTIONS</b>\nPCR: {options.get('pcr')} ({options.get('pcr_signal')})\nMax Pain: {options.get('max_pain')}\n"
+        pre += "\n<b>EARNINGS THIS WEEK</b>\n"
+        for e in earnings:
+            pre += f"- {e}\n"
+        pre += "\n<b>TOP NEWS</b>\n"
+        for n in news[:3]:
+            pre += f"- {n[:80]}\n"
+        pre += "\n<i>Market 9:15 AM pe open hoga. DYOR.</i>"
+        if len(pre) > 4000:
+            pre = pre[:3900] + "\n..."
+        send_telegram(pre)
+
+    report = f"<b>DalalStreet {session} REPORT</b>\n<b>{session_hi}</b>\n"
+    report += "================================\n\n"
+    report += "<b>GLOBAL MARKETS</b>\n"
+    for name, val in global_mkts.items():
+        report += f"{name}: {val}\n"
+    report += "\n<b>MACRO DATA</b>\n"
+    report += f"Crude: ${macro.get('crude')} | Gold: ${macro.get('gold')}\n"
+    report += f"USD/INR: {macro.get('dollar')} | Silver: ${macro.get('silver')}\n"
+    report += f"VIX: {macro.get('vix')} | US 10Y: {macro.get('us10y')}%\n"
+    report += f"\n<b>OPTIONS</b>\nPCR: {options.get('pcr')} ({options.get('pcr_signal')}) | Max Pain: {options.get('max_pain')}\n"
+    report += f"CE OI: {options.get('total_ce_oi')} | PE OI: {options.get('total_pe_oi')}\n"
+    report += f"\n<b>FII/DII</b>\n{fii_dii}\n"
+    report += "\n<b>EARNINGS THIS WEEK</b>\n"
+    for e in earnings:
+        report += f"- {e}\n"
+    report += "\n<b>NEWS IMPACT</b>\n"
+    for s in sector_impact:
+        report += f"- {s}\n"
+    report += "\n<b>TOP NEWS</b>\n"
+    for n in news[:3]:
+        report += f"- {n[:80]}\n"
+
+    signals_text = ""
+    buy_signals = []
+    sell_signals = []
+    circuit_alerts = []
+    breakout_alerts = []
+
+    all_results = []
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {executor.submit(get_signal, symbol, name): name for name, symbol in WATCHLIST.items()}
+        for future in as_completed(futures, timeout=120):
+            try:
+                data = future.result(timeout=15)
+                if data:
+                    all_results.append(data)
+            except Exception:
+                pass
+
+    for data in all_results:
+        signals_text += f"{data['name']}:{data['signal']} "
+        if data['circuit']:
+            circuit_alerts.append(f"{data['name']}: {data['circuit']}")
+        if "BREAKOUT" in data['breakout_52w'] or "SUPPORT" in data['breakout_52w']:
+            breakout_alerts.append(f"{data['name']}: {data['breakout_52w']}")
+        if data['signal'] == "BUY":
+            buy_signals.append(data)
+        elif data['signal'] == "SELL":
+            sell_signals.append(data)
+
+    buy_signals.sort(key=lambda x: x['confidence'], reverse=True)
+    sell_signals.sort(key=lambda x: x['confidence'], reverse=True)
+
+    if circuit_alerts:
+        report += "\n<b>CIRCUIT ALERTS</b>\n"
+        for alert in circuit_alerts:
+            report += f"- {alert}\n"
+
+    if breakout_alerts:
+        report += "\n<b>52W BREAKOUT ALERTS</b>\n"
+        for alert in breakout_alerts[:5]:
+            report += f"- {alert}\n"
+
+    report += f"\n<b>SIGNALS — BUY:{len(buy_signals)} | SELL:{len(sell_signals)}</b>\n"
+    report += "================================\n"
+
+    for data in buy_signals[:4]:
+        ai_line = get_ai_oneliner(data['name'], "BUY", data['rsi'], data['trend'], data['reason'])
+        report += f"\n<b>BUY - {data['name']}</b>\n"
+        report += f"Price: {data['price']} ({data['change']:+.2f}%)\n"
+        report += f"Entry Zone: {data['entry_low']} - {data['entry_high']}\n"
+        report += f"T1: {data['target1']} (R:R 1:{data['rr1']}) | T2: {data['target2']} (R:R 1:{data['rr2']})\n"
+        report += f"T3: {data['target3']} | SL: {data['stoploss']}\n"
+        report += f"Support: {data['support1']} / {data['support2']}\n"
+        report += f"Resist: {data['resist1']} / {data['resist2']}\n"
+        report += f"BB: {data['bb_lower']} - {data['bb_upper']}\n"
+        report += f"RSI: {data['rsi']} ({data['rsi_zone']}) | Trend: {data['trend']}\n"
+        report += f"SMA20: {data['sma20']} | SMA50: {data['sma50']}\n"
+        report += f"Candle: {data['candle']} | Vol: {data['vol_signal']}\n"
+        report += f"52W: {data['breakout_52w']}\n"
+        report += f"Confidence: {data['confidence']}/10\n"
+        if ai_line:
+            report += f"AI: {ai_line}\n"
+        report += "- - - - - - - - -\n"
+
+    for data in sell_signals[:2]:
+        ai_line = get_ai_oneliner(data['name'], "SELL", data['rsi'], data['trend'], data['reason'])
+        report += f"\n<b>SELL - {data['name']}</b>\n"
+        report += f"Price: {data['price']} ({data['change']:+.2f}%)\n"
+        report += f"Entry Zone: {data['entry_low']} - {data['entry_high']}\n"
+        report += f"T1: {data['target1']} (R:R 1:{data['rr1']}) | T2: {data['target2']} (R:R 1:{data['rr2']})\n"
+        report += f"T3: {data['target3']} | SL: {data['stoploss']}\n"
+        report += f"Support: {data['support1']} / {data['support2']}\n"
+        report += f"Resist: {data['resist1']} / {data['resist2']}\n"
+        report += f"BB: {data['bb_lower']} - {data['bb_upper']}\n"
+        report += f"RSI: {data['rsi']} ({data['rsi_zone']}) | Trend: {data['trend']}\n"
+        report += f"SMA20: {data['sma20']} | SMA50: {data['sma50']}\n"
+        report += f"Candle: {data['candle']} | Vol: {data['vol_signal']}\n"
+        report += f"52W: {data['breakout_52w']}\n"
+        report += f"Confidence: {data['confidence']}/10\n"
+        if ai_line:
+            report += f"AI: {ai_line}\n"
+        report += "- - - - - - - - -\n"
+
+    tracker = get_paper_trade_summary()
+    if tracker:
+        report += "\n<b>PAPER TRADE TRACKER</b>\n"
+        report += f"Win: {tracker['win']} | Loss: {tracker['loss']} | Accuracy: {tracker['accuracy']}%\n"
+        for r in tracker['results'][-3:]:
+            report += f"- {r}\n"
+
+    report += "\n================================\n"
+    report += "<b>AI ANALYSIS</b>\n"
+    report += get_ai_analysis(macro, global_mkts, news, signals_text, len(buy_signals), len(sell_signals), options)
+    report += "\n\n<i>DYOR. Not financial advice.</i>"
+
+    if len(report) > 4000:
+        report = report[:3900] + "\n...\n<i>DYOR. Not financial advice.</i>"
+
+    send_telegram(report)
+    print("Report sent successfully!")
+
+if __name__ == "__main__":
+    main()
