@@ -643,7 +643,7 @@ def get_ai_oneliner(name, signal, rsi, trend, reason):
 # ============ MAIN SIGNAL ENGINE ============
 def get_signal(symbol, name):
     try:
-        df = yf.download(symbol, period="1y", interval="1d", progress=False)
+        df = yf.download(symbol, period="3mo", interval="1d", progress=False)
         if df.empty or len(df) < 20:
             return None
 
@@ -757,7 +757,8 @@ NEWS: {news[:3]}
 BUY: {buy_count} | SELL: {sell_count}
 Signals: {signals_text[:200]}
 
-Concise Hindi mein 4 points:
+Sirf plain text Hindi mein 4 lines do.
+Koi star ya asterisk mat lagao:
 1. Market mood
 2. Best opportunity
 3. Kya avoid karo
