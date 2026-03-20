@@ -4,3 +4,4 @@ requests
 feedparser
 numpy
 pandas
+pyotp
