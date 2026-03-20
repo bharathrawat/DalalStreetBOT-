@@ -1,6 +1,7 @@
 import os
 import requests
 import yfinance as yf
+import pandas as pd
 import feedparser
 import json
 import numpy as np
@@ -407,33 +408,58 @@ def get_ai_oneliner(name, signal, rsi, trend, reason):
 # ============ MAIN SIGNAL ENGINE ============
 def get_signal(symbol, name):
     try:
-        df = yf.download(symbol, period="1y", interval="1d", progress=False)
+        df = yf.download(symbol, period="3mo", interval="1d", progress=False, auto_adjust=True)
         if df.empty or len(df) < 20:
             return None
 
-        df["RSI"] = calculate_rsi(df)
-        rsi = round(float(df["RSI"].iloc[-1]), 1)
-        df["SMA20"] = df["Close"].rolling(20).mean()
-        df["SMA50"] = df["Close"].rolling(50).mean()
-        sma20 = float(df["SMA20"].iloc[-1])
-        sma50 = float(df["SMA50"].iloc[-1])
-        df["BB_mid"] = df["Close"].rolling(20).mean()
-        df["BB_std"] = df["Close"].rolling(20).std()
-        df["BB_upper"] = df["BB_mid"] + 2 * df["BB_std"]
-        df["BB_lower"] = df["BB_mid"] - 2 * df["BB_std"]
-        bb_upper = round(float(df["BB_upper"].iloc[-1]), 2)
-        bb_lower = round(float(df["BB_lower"].iloc[-1]), 2)
-        price = round(float(df["Close"].iloc[-1]), 2)
-        prev = round(float(df["Close"].iloc[-2]), 2)
+        # Fix yfinance multi-level columns
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
+
+        close = df["Close"].squeeze()
+        volume_s = df["Volume"].squeeze()
+        high_s = df["High"].squeeze()
+        low_s = df["Low"].squeeze()
+        open_s = df["Open"].squeeze()
+
+        # RSI
+        delta = close.diff()
+        gain = delta.where(delta > 0, 0).rolling(14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+        rs = gain / loss
+        rsi_series = 100 - (100 / (1 + rs))
+        rsi = round(float(rsi_series.iloc[-1]), 1)
+
+        # SMA
+        sma20 = float(close.rolling(20).mean().iloc[-1])
+        sma50 = float(close.rolling(50).mean().iloc[-1])
+
+        # Bollinger Bands
+        bb_mid = close.rolling(20).mean()
+        bb_std = close.rolling(20).std()
+        bb_upper = round(float((bb_mid + 2 * bb_std).iloc[-1]), 2)
+        bb_lower = round(float((bb_mid - 2 * bb_std).iloc[-1]), 2)
+
+        price = round(float(close.iloc[-1]), 2)
+        prev = round(float(close.iloc[-2]), 2)
         change = round(((price - prev) / prev) * 100, 2)
-        volume = int(df["Volume"].iloc[-1])
-        avg_vol = int(df["Volume"].tail(20).mean())
+        volume = int(volume_s.iloc[-1])
+        avg_vol = int(volume_s.tail(20).mean())
         vol_signal = "High Vol" if volume > avg_vol * 1.5 else "Normal Vol"
-        week_high = round(float(df["High"].tail(5).max()), 2)
-        week_low = round(float(df["Low"].tail(5).min()), 2)
-        candle = detect_candlestick_pattern(df)
-        sr = get_support_resistance(df)
-        breakout_52w = check_52week_breakout(df, price)
+        week_high = round(float(high_s.tail(5).max()), 2)
+        week_low = round(float(low_s.tail(5).min()), 2)
+
+        # Build simple df for helper functions
+        simple_df = pd.DataFrame({
+            "Open": open_s,
+            "High": high_s,
+            "Low": low_s,
+            "Close": close,
+            "Volume": volume_s
+        })
+        candle = detect_candlestick_pattern(simple_df)
+        sr = get_support_resistance(simple_df)
+        breakout_52w = check_52week_breakout(simple_df, price)
         circuit = check_circuit_breaker(price, prev)
 
         signal = "HOLD"
@@ -528,26 +554,4 @@ Concise Hindi mein 4 points:
 4. Risk warning
 """
     response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=250
-    )
-    return response.choices[0].message.content
-
-# ============ TELEGRAM ============
-def send_telegram(message):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    requests.post(url, json={
-        "chat_id": CHAT_ID,
-        "text": message,
-        "parse_mode": "HTML"
-    })
-
-# ============ MAIN ============
-def main():
-    hour = (datetime.utcnow().hour + 5) % 24
-    macro = get_macro_data()
-    global_mkts = get_global_markets()
-    news = get_news()
-    sector_impact = get_sector_impact(news)
-    fii_dii = g
+        model="llama-
