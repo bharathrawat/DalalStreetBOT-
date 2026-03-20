@@ -1,4 +1,5 @@
 import os
+import time
 import requests
 import yfinance as yf
 import feedparser
@@ -851,7 +852,8 @@ def main():
     circuit_alerts = []
     breakout_alerts = []
 
-    for name, symbol in WATCHLIST.items():
+    for name, symbol in WATCHLIST.items(): 
+        time.sleep (0.5)
         data = get_signal(symbol, name)
         if not data:
             continue
