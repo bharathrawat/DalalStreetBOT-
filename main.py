@@ -1,10 +1,11 @@
 import os
-import time
 import requests
 import yfinance as yf
 import feedparser
 import json
 import numpy as np
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from groq import Groq
 from datetime import datetime, timedelta
 
@@ -19,333 +20,95 @@ WATCHLIST = {
     "Nifty 50": "^NSEI",
     "Sensex": "^BSESN",
     "Bank Nifty": "^NSEBANK",
-    "Nifty IT": "^CNXIT",
-    "Nifty Pharma": "^CNXPHARMA",
-    "Nifty Auto": "^CNXAUTO",
-    "Nifty Metal": "^CNXMETAL",
-    "Nifty Realty": "^CNXREALTY",
-    "Nifty FMCG": "^CNXFMCG",
-
     # === BANKING ===
     "HDFC Bank": "HDFCBANK.NS",
     "ICICI Bank": "ICICIBANK.NS",
     "SBI": "SBIN.NS",
-    "Kotak Bank": "KOTAKBANK.NS",
     "Axis Bank": "AXISBANK.NS",
-    "Bank of Baroda": "BANKBARODA.NS",
-    "PNB": "PNB.NS",
-
-    # === FINANCIAL SERVICES / NBFC ===
+    "Kotak Bank": "KOTAKBANK.NS",
+    # === FINANCIAL ===
     "Bajaj Finance": "BAJFINANCE.NS",
-    "Bajaj Finserv": "BAJAJFINSV.NS",
-    "Muthoot Finance": "MUTHOOTFIN.NS",
-    "Shriram Finance": "SHRIRAMFIN.NS",
-
-    # === BROKERS ===
     "Angel One": "ANGELONE.NS",
-    "ICICI Securities": "ISEC.NS",
-    "Motilal Oswal": "MOTILALOFS.NS",
-
-    # === INSURANCE ===
+    "LIC": "LICI.NS",
     "HDFC Life": "HDFCLIFE.NS",
     "SBI Life": "SBILIFE.NS",
-    "LIC": "LICI.NS",
-    "New India Assurance": "NIACL.NS",
-
-    # === IT SOFTWARE ===
+    # === IT ===
     "TCS": "TCS.NS",
     "Infosys": "INFY.NS",
-    "Wipro": "WIPRO.NS",
     "HCL Tech": "HCLTECH.NS",
-    "Tech Mahindra": "TECHM.NS",
-    "LTIMindtree": "LTIM.NS",
-
-    # === IT HARDWARE ===
     "Dixon Tech": "DIXON.NS",
-    "Kaynes Tech": "KAYNES.NS",
-    "Tata Elxsi": "TATAELXSI.NS",
-    "KPIT Tech": "KPITTECH.NS",
-
-    # === STEEL ===
+    # === METALS ===
     "Tata Steel": "TATASTEEL.NS",
     "JSW Steel": "JSWSTEEL.NS",
-    "SAIL": "SAIL.NS",
-
-    # === NON-FERROUS METALS ===
     "Hindalco": "HINDALCO.NS",
-    "Vedanta": "VEDL.NS",
-    "National Aluminium": "NATIONALUM.NS",
-    "Hindustan Zinc": "HINDZINC.NS",
-
-    # === FERRO ALLOYS ===
-    "MIDHANI": "MIDHANI.NS",
-    "Hindustan Copper": "HINDCOPPER.NS",
-
-    # === MINING ===
     "Coal India": "COALINDIA.NS",
     "NMDC": "NMDC.NS",
-    "MOIL": "MOIL.NS",
-
+    "MIDHANI": "MIDHANI.NS",
     # === OIL & GAS ===
     "Reliance": "RELIANCE.NS",
     "ONGC": "ONGC.NS",
     "BPCL": "BPCL.NS",
-    "IOC": "IOC.NS",
-    "HPCL": "HPCL.NS",
-
-    # === REFINERIES ===
-    "Chennai Petro": "CHENNPETRO.NS",
-    "MRPL": "MRPL.NS",
-
-    # === PETROCHEMICALS ===
-    "GAIL": "GAIL.NS",
-    "Deepak Nitrite": "DEEPAKNITR.NS",
-
-    # === GAS DISTRIBUTION ===
     "IGL": "IGL.NS",
-    "MGL": "MGL.NS",
-    "Gujarat Gas": "GUJGASLTD.NS",
-
-    # === EDIBLE OIL ===
+    "GAIL": "GAIL.NS",
+    # === AGRO ===
     "Adani Wilmar": "AWL.NS",
-    "KRBL": "KRBL.NS",
-    "Patanjali Foods": "PATANJALIFO.NS",
-
-    # === FERTILIZERS ===
     "Coromandel": "COROMANDEL.NS",
-    "Chambal Fertilizers": "CHAMBLFERT.NS",
-    "GSFC": "GSFC.NS",
-    "RCF": "RCF.NS",
-
-    # === AGRO CHEMICALS ===
     "UPL": "UPL.NS",
-    "PI Industries": "PIIND.NS",
-    "Rallis India": "RALLIS.NS",
-
-    # === SUGAR ===
     "Balrampur Chini": "BALRAMCHIN.NS",
-    "Renuka Sugars": "RENUKA.NS",
-    "Triveni Engineering": "TRIVENI.NS",
-
-    # === AUTOMOBILE ===
+    # === AUTO ===
     "Maruti": "MARUTI.NS",
     "Tata Motors": "TATAMOTORS.NS",
-    "Mahindra": "M&M.NS",
     "Bajaj Auto": "BAJAJ-AUTO.NS",
-    "Hero MotoCorp": "HEROMOTOCO.NS",
-    "TVS Motor": "TVSMOTOR.NS",
-    "Eicher Motors": "EICHERMOT.NS",
-
-    # === AUTO PARTS ===
-    "Motherson Sumi": "MOTHERSON.NS",
-    "Bosch": "BOSCHLTD.NS",
     "Bharat Forge": "BHARATFORG.NS",
-    "Minda Industries": "MINDAIND.NS",
-
-    # === CASTINGS & FORGINGS ===
-    "Ramkrishna Forgings": "RKFORGE.NS",
-    "Electrosteel Cast": "ELECTCAST.NS",
-
-    # === BEARINGS ===
-    "Timken India": "TIMKEN.NS",
-    "SKF India": "SKFINDIA.NS",
-    "Schaeffler": "SCHAEFFLER.NS",
-
-    # === TYRES ===
     "Apollo Tyres": "APOLLOTYRE.NS",
-    "MRF": "MRF.NS",
-    "CEAT": "CEATLTD.NS",
-
     # === PHARMA ===
     "Sun Pharma": "SUNPHARMA.NS",
     "Dr Reddy": "DRREDDY.NS",
     "Cipla": "CIPLA.NS",
-    "Divis Lab": "DIVISLAB.NS",
-    "Lupin": "LUPIN.NS",
-    "Biocon": "BIOCON.NS",
-
-    # === HEALTHCARE ===
-    "Apollo Hospitals": "APOLLOHOSP.NS",
-    "Fortis Healthcare": "FORTIS.NS",
-    "Max Healthcare": "MAXHEALTH.NS",
-
     # === FMCG ===
     "Hindustan Unilever": "HINDUNILVR.NS",
     "ITC": "ITC.NS",
     "Nestle": "NESTLEIND.NS",
-    "Britannia": "BRITANNIA.NS",
-    "Dabur": "DABUR.NS",
-    "Marico": "MARICO.NS",
-    "Godrej Consumer": "GODREJCP.NS",
-
-    # === PAINTS ===
-    "Asian Paints": "ASIANPAINT.NS",
-    "Berger Paints": "BERGEPAINT.NS",
-    "Kansai Nerolac": "KANSAINER.NS",
-
-    # === CEMENT ===
+    # === CEMENT & INFRA ===
     "UltraTech Cement": "ULTRACEMCO.NS",
-    "Ambuja Cement": "AMBUJACEM.NS",
-    "ACC": "ACC.NS",
-    "Shree Cement": "SHREECEM.NS",
-    "Dalmia Bharat": "DALBHARAT.NS",
-
-    # === REALTY ===
-    "DLF": "DLF.NS",
-    "Godrej Properties": "GODREJPROP.NS",
-    "Oberoi Realty": "OBEROIRLTY.NS",
-    "Prestige Estates": "PRESTIGE.NS",
-
-    # === INFRA DEVELOPERS ===
     "L&T": "LT.NS",
-    "IRB Infra": "IRB.NS",
-    "Adani Ports": "ADANIPORTS.NS",
-
-    # === CAPITAL GOODS ELECTRICAL ===
-    "ABB India": "ABB.NS",
-    "Siemens": "SIEMENS.NS",
-    "Havells": "HAVELLS.NS",
-    "Polycab": "POLYCAB.NS",
-
-    # === CAPITAL GOODS NON-ELECTRICAL ===
-    "Thermax": "THERMAX.NS",
-    "BHEL": "BHEL.NS",
-    "Elecon Engineering": "ELECON.NS",
-
-    # === CABLES ===
-    "Polycab India": "POLYCAB.NS",
-    "KEI Industries": "KEI.NS",
-    "Sterlite Tech": "STLTECH.NS",
-
-    # === POWER ===
+    "DLF": "DLF.NS",
+    # === POWER & CAPITAL GOODS ===
     "NTPC": "NTPC.NS",
     "Power Grid": "POWERGRID.NS",
-    "Adani Power": "ADANIPOWER.NS",
-    "Tata Power": "TATAPOWER.NS",
-
-    # === POWER INFRASTRUCTURE ===
-    "CESC": "CESC.NS",
-    "Torrent Power": "TORNTPOWER.NS",
-
-    # === AEROSPACE & DEFENCE ===
+    "Havells": "HAVELLS.NS",
+    "Polycab": "POLYCAB.NS",
+    # === DEFENCE ===
     "HAL": "HAL.NS",
     "BEL": "BEL.NS",
-    "Bharat Dynamics": "BDL.NS",
-    "MTAR Tech": "MTARTECH.NS",
-    "Paras Defence": "PDSLTD.NS",
-
-    # === AIR TRANSPORT ===
-    "IndiGo": "INDIGO.NS",
-    "SpiceJet": "SPICEJET.NS",
-
-    # === SHIPPING ===
-    "SCI": "SCI.NS",
-    "GE Shipping": "GESHIP.NS",
-
-    # === SHIPBUILDING ===
     "Mazagon Dock": "MAZDOCK.NS",
-    "GRSE": "GRSE.NS",
-    "Cochin Shipyard": "COCHINSHIP.NS",
-
-    # === LOGISTICS ===
+    # === TRANSPORT ===
+    "IndiGo": "INDIGO.NS",
+    "SCI": "SCI.NS",
     "Delhivery": "DELHIVERY.NS",
-    "Blue Dart": "BLUEDART.NS",
-    "TCI Express": "TCIEXP.NS",
-
     # === RAILWAYS ===
     "IRFC": "IRFC.NS",
     "RVNL": "RVNL.NS",
     "IRCTC": "IRCTC.NS",
-    "Titagarh Rail": "TITAGARH.NS",
-
-    # === TELECOM SERVICE ===
+    # === TELECOM ===
     "Bharti Airtel": "BHARTIARTL.NS",
-    "Vodafone Idea": "IDEA.NS",
-
-    # === TELECOM INFRA ===
     "Indus Towers": "INDUSTOWER.NS",
-    "HFCL": "HFCL.NS",
-
-    # === CONSUMER DURABLES ===
-    "Voltas": "VOLTAS.NS",
-    "Blue Star": "BLUESTARCO.NS",
-    "Crompton Greaves": "CROMPTON.NS",
-    "Whirlpool": "WHIRLPOOL.NS",
-
-    # === ELECTRONICS ===
-    "Amber Enterprises": "AMBER.NS",
-    "Syrma SGS": "SYRMA.NS",
-
-    # === JEWELLERY ===
+    # === CONSUMER ===
     "Titan": "TITAN.NS",
-    "Kalyan Jewellers": "KALYANKJIL.NS",
-    "Senco Gold": "SENCO.NS",
-
-    # === RETAIL ===
     "DMart": "DMART.NS",
-    "Trent": "TRENT.NS",
-    "V-Mart": "VMART.NS",
-
-    # === QSR / HOTELS & RESTAURANTS ===
-    "Jubilant FoodWorks": "JUBLFOOD.NS",
-    "Westlife Foodworld": "WESTLIFE.NS",
-    "IHCL": "INDHOTEL.NS",
-    "Lemon Tree": "LEMONTREE.NS",
-    "EIH": "EIHOTEL.NS",
-
-    # === MEDIA & ENTERTAINMENT ===
-    "ZEEL": "ZEEL.NS",
+    "Voltas": "VOLTAS.NS",
+    # === MEDIA & E-COMM ===
+    "Zomato": "ZOMATO.NS",
     "Sun TV": "SUNTV.NS",
     "PVR Inox": "PVRINOX.NS",
-
-    # === E-COMMERCE / AGGREGATOR ===
-    "Zomato": "ZOMATO.NS",
-    "Nykaa": "FSN.NS",
-    "Paytm": "PAYTM.NS",
-    "PolicyBazaar": "POLICYBZR.NS",
-
-    # === TEXTILES ===
-    "Trident": "TRIDENT.NS",
-    "Raymond": "RAYMOND.NS",
-    "Vardhman Textiles": "VTL.NS",
-
-    # === PAPER ===
-    "JK Paper": "JKPAPER.NS",
-    "West Coast Paper": "WESTCOAST.NS",
-
     # === CHEMICALS ===
     "Pidilite": "PIDILITIND.NS",
-    "Aarti Industries": "AARTIIND.NS",
-    "Deepak Fertilisers": "DEEPAKFERT.NS",
+    "Asian Paints": "ASIANPAINT.NS",
     "SRF": "SRF.NS",
-
-    # === PLASTIC PRODUCTS ===
-    "Supreme Industries": "SUPREMEIND.NS",
-    "Astral": "ASTRAL.NS",
-
-    # === GLASS PRODUCTS ===
-    "Asahi India Glass": "ASAHIINDIA.NS",
-    "Borosil": "BORORENEW.NS",
-
-    # === ALCOHOLIC BEVERAGES ===
-    "United Breweries": "UBL.NS",
-    "United Spirits": "MCDOWELL-N.NS",
-    "Radico Khaitan": "RADICO.NS",
-
-    # === REITs ===
-    "Embassy REIT": "EMBASSY.NS",
-    "Mindspace REIT": "MINDSPACE.NS",
-
-    # === PACKAGING ===
-    "UFlex": "UFLEX.NS",
-    "Mold-Tek Pack": "MOLDTKPAC.NS",
-
-    # === DIVERSIFIED ===
-    "ITC": "ITC.NS",
-    "Godrej Industries": "GODREJIND.NS",
-    "Tata Group": "TATACHEM.NS"
+    # === HOTELS & QSR ===
+    "IHCL": "INDHOTEL.NS",
+    "Jubilant FoodWorks": "JUBLFOOD.NS",
 }
-
 GLOBAL_MARKETS = {
     "Dow Jones": "^DJI",
     "Nasdaq": "^IXIC",
@@ -644,7 +407,7 @@ def get_ai_oneliner(name, signal, rsi, trend, reason):
 # ============ MAIN SIGNAL ENGINE ============
 def get_signal(symbol, name):
     try:
-        df = yf.download(symbol, period="3mo", interval="1d", progress=False)
+        df = yf.download(symbol, period="1y", interval="1d", progress=False)
         if df.empty or len(df) < 20:
             return None
 
@@ -758,8 +521,7 @@ NEWS: {news[:3]}
 BUY: {buy_count} | SELL: {sell_count}
 Signals: {signals_text[:200]}
 
-Sirf plain text Hindi mein 4 lines do.
-Koi star ya asterisk mat lagao:
+Concise Hindi mein 4 points:
 1. Market mood
 2. Best opportunity
 3. Kya avoid karo
@@ -788,156 +550,4 @@ def main():
     global_mkts = get_global_markets()
     news = get_news()
     sector_impact = get_sector_impact(news)
-    fii_dii = get_fii_dii()
-    options = get_options_data()
-    earnings = get_earnings_calendar()
-
-    if hour < 12:
-        session = "MORNING"
-        session_hi = "Subah 9:15 AM"
-    elif hour < 15:
-        session = "MIDDAY"
-        session_hi = "Dopahar 12 PM"
-    else:
-        session = "CLOSING"
-        session_hi = "Shaam 3:30 PM"
-
-    # Pre-market alert
-    if hour == 8:
-        pre = "<b>PRE-MARKET ALERT 8:30 AM</b>\n================================\n"
-        pre += "<b>GIFT NIFTY</b>\n"
-        pre += f"Gift Nifty: {global_mkts.get('Gift Nifty')}\n"
-        pre += "\n<b>OVERNIGHT GLOBAL</b>\n"
-        for name, val in global_mkts.items():
-            pre += f"{name}: {val}\n"
-        pre += f"\n<b>MACRO</b>\nCrude: ${macro.get('crude')} | Gold: ${macro.get('gold')}\n"
-        pre += f"USD/INR: {macro.get('dollar')} | VIX: {macro.get('vix')}\n"
-        pre += f"\n<b>OPTIONS</b>\nPCR: {options.get('pcr')} ({options.get('pcr_signal')})\nMax Pain: {options.get('max_pain')}\n"
-        pre += "\n<b>EARNINGS THIS WEEK</b>\n"
-        for e in earnings:
-            pre += f"- {e}\n"
-        pre += "\n<b>TOP NEWS</b>\n"
-        for n in news[:3]:
-            pre += f"- {n[:80]}\n"
-        pre += "\n<i>Market 9:15 AM pe open hoga. DYOR.</i>"
-        if len(pre) > 4000:
-            pre = pre[:3900] + "\n..."
-        send_telegram(pre)
-
-    report = f"<b>DalalStreet {session} REPORT</b>\n<b>{session_hi}</b>\n"
-    report += "================================\n\n"
-    report += "<b>GLOBAL MARKETS</b>\n"
-    for name, val in global_mkts.items():
-        report += f"{name}: {val}\n"
-    report += "\n<b>MACRO DATA</b>\n"
-    report += f"Crude: ${macro.get('crude')} | Gold: ${macro.get('gold')}\n"
-    report += f"USD/INR: {macro.get('dollar')} | Silver: ${macro.get('silver')}\n"
-    report += f"VIX: {macro.get('vix')} | US 10Y: {macro.get('us10y')}%\n"
-    report += f"\n<b>OPTIONS</b>\nPCR: {options.get('pcr')} ({options.get('pcr_signal')}) | Max Pain: {options.get('max_pain')}\n"
-    report += f"CE OI: {options.get('total_ce_oi')} | PE OI: {options.get('total_pe_oi')}\n"
-    report += f"\n<b>FII/DII</b>\n{fii_dii}\n"
-    report += "\n<b>EARNINGS THIS WEEK</b>\n"
-    for e in earnings:
-        report += f"- {e}\n"
-    report += "\n<b>NEWS IMPACT</b>\n"
-    for s in sector_impact:
-        report += f"- {s}\n"
-    report += "\n<b>TOP NEWS</b>\n"
-    for n in news[:3]:
-        report += f"- {n[:80]}\n"
-
-    signals_text = ""
-    buy_signals = []
-    sell_signals = []
-    circuit_alerts = []
-    breakout_alerts = []
-
-    for name, symbol in WATCHLIST.items(): 
-        time.sleep (0.5)
-        data = get_signal(symbol, name)
-        if not data:
-            continue
-        signals_text += f"{name}:{data['signal']} "
-        if data['circuit']:
-            circuit_alerts.append(f"{name}: {data['circuit']}")
-        if "BREAKOUT" in data['breakout_52w'] or "SUPPORT" in data['breakout_52w']:
-            breakout_alerts.append(f"{name}: {data['breakout_52w']}")
-        if data['signal'] == "BUY":
-            buy_signals.append(data)
-        elif data['signal'] == "SELL":
-            sell_signals.append(data)
-
-    buy_signals.sort(key=lambda x: x['confidence'], reverse=True)
-    sell_signals.sort(key=lambda x: x['confidence'], reverse=True)
-
-    if circuit_alerts:
-        report += "\n<b>CIRCUIT ALERTS</b>\n"
-        for alert in circuit_alerts:
-            report += f"- {alert}\n"
-
-    if breakout_alerts:
-        report += "\n<b>52W BREAKOUT ALERTS</b>\n"
-        for alert in breakout_alerts[:5]:
-            report += f"- {alert}\n"
-
-    report += f"\n<b>SIGNALS — BUY:{len(buy_signals)} | SELL:{len(sell_signals)}</b>\n"
-    report += "================================\n"
-
-    for data in buy_signals[:4]:
-        ai_line = get_ai_oneliner(data['name'], "BUY", data['rsi'], data['trend'], data['reason'])
-        report += f"\n<b>BUY - {data['name']}</b>\n"
-        report += f"Price: {data['price']} ({data['change']:+.2f}%)\n"
-        report += f"Entry Zone: {data['entry_low']} - {data['entry_high']}\n"
-        report += f"T1: {data['target1']} (R:R 1:{data['rr1']}) | T2: {data['target2']} (R:R 1:{data['rr2']})\n"
-        report += f"T3: {data['target3']} | SL: {data['stoploss']}\n"
-        report += f"Support: {data['support1']} / {data['support2']}\n"
-        report += f"Resist: {data['resist1']} / {data['resist2']}\n"
-        report += f"BB: {data['bb_lower']} - {data['bb_upper']}\n"
-        report += f"RSI: {data['rsi']} ({data['rsi_zone']}) | Trend: {data['trend']}\n"
-        report += f"SMA20: {data['sma20']} | SMA50: {data['sma50']}\n"
-        report += f"Candle: {data['candle']} | Vol: {data['vol_signal']}\n"
-        report += f"52W: {data['breakout_52w']}\n"
-        report += f"Confidence: {data['confidence']}/10\n"
-        if ai_line:
-            report += f"AI: {ai_line}\n"
-        report += "- - - - - - - - -\n"
-
-    for data in sell_signals[:2]:
-        ai_line = get_ai_oneliner(data['name'], "SELL", data['rsi'], data['trend'], data['reason'])
-        report += f"\n<b>SELL - {data['name']}</b>\n"
-        report += f"Price: {data['price']} ({data['change']:+.2f}%)\n"
-        report += f"Entry Zone: {data['entry_low']} - {data['entry_high']}\n"
-        report += f"T1: {data['target1']} (R:R 1:{data['rr1']}) | T2: {data['target2']} (R:R 1:{data['rr2']})\n"
-        report += f"T3: {data['target3']} | SL: {data['stoploss']}\n"
-        report += f"Support: {data['support1']} / {data['support2']}\n"
-        report += f"Resist: {data['resist1']} / {data['resist2']}\n"
-        report += f"BB: {data['bb_lower']} - {data['bb_upper']}\n"
-        report += f"RSI: {data['rsi']} ({data['rsi_zone']}) | Trend: {data['trend']}\n"
-        report += f"SMA20: {data['sma20']} | SMA50: {data['sma50']}\n"
-        report += f"Candle: {data['candle']} | Vol: {data['vol_signal']}\n"
-        report += f"52W: {data['breakout_52w']}\n"
-        report += f"Confidence: {data['confidence']}/10\n"
-        if ai_line:
-            report += f"AI: {ai_line}\n"
-        report += "- - - - - - - - -\n"
-
-    tracker = get_paper_trade_summary()
-    if tracker:
-        report += "\n<b>PAPER TRADE TRACKER</b>\n"
-        report += f"Win: {tracker['win']} | Loss: {tracker['loss']} | Accuracy: {tracker['accuracy']}%\n"
-        for r in tracker['results'][-3:]:
-            report += f"- {r}\n"
-
-    report += "\n================================\n"
-    report += "<b>AI ANALYSIS</b>\n"
-    report += get_ai_analysis(macro, global_mkts, news, signals_text, len(buy_signals), len(sell_signals), options)
-    report += "\n\n<i>DYOR. Not financial advice.</i>"
-
-    if len(report) > 4000:
-        report = report[:3900] + "\n...\n<i>DYOR. Not financial advice.</i>"
-
-    send_telegram(report)
-    print("Report sent successfully!")
-
-if __name__ == "__main__":
-    main()
+    fii_dii = g
