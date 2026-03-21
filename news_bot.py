@@ -1,9 +1,11 @@
-import os
+mport os
 import requests
 import feedparser
 import time
 import json
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+
+IST = timezone(timedelta(hours=5, minutes=30))
 
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 CHAT_ID = os.environ["CHAT_ID"]
@@ -147,7 +149,7 @@ def check_news_relevance(title):
     return info["priority"], " | ".join(all_impacts), " ".join(all_emojis)
 
 def format_alert(title, priority, impact, emojis, source_time):
-    now = datetime.now().strftime("%I:%M %p")
+    now = datetime.now(IST).strftime("%I:%M %p")
 
     if priority == "CRITICAL":
         header = "🚨 <b>CRITICAL MARKET ALERT</b> 🚨"
@@ -225,7 +227,7 @@ def main():
 
     while True:
         try:
-            print(f"\n[{datetime.now().strftime('%H:%M:%S')}] Checking news...")
+            print(f"\n[{datetime.now(IST).strftime('%H:%M:%S')}] Checking news...")
             alerts = fetch_and_alert()
             print(f"Sent {alerts} new alerts")
         except Exception as e:
