@@ -5,3 +5,4 @@ feedparser
 numpy
 pandas
 pyotp
+matplotlib
