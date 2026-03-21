@@ -22,12 +22,12 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run bot
-  run: python main.py
-  env:
-    ANGEL_API_KEY: ${{ secrets.ANGEL_API_KEY }}
-    ANGEL_CLIENT_ID: ${{ secrets.ANGEL_CLIENT_ID }}
-    ANGEL_PASSWORD: ${{ secrets.ANGEL_PASSWORD }}
-    ANGEL_TOTP: ${{ secrets.ANGEL_TOTP }}
-    TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-    CHAT_ID: ${{ secrets.CHAT_ID }}
-    GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: python main.py
+        env:
+          ANGEL_API_KEY: ${{ secrets.ANGEL_API_KEY }}
+          ANGEL_CLIENT_ID: ${{ secrets.ANGEL_CLIENT_ID }}
+          ANGEL_PASSWORD: ${{ secrets.ANGEL_PASSWORD }}
+          ANGEL_TOTP: ${{ secrets.ANGEL_TOTP }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
