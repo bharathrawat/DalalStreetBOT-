@@ -3,9 +3,9 @@ import requests
 import feedparser
 import time
 import json
-from datetime import datetime, timezone, timedelta
-
-IST = timezone(timedelta(hours=5, minutes=30))
+import pytz
+from datetime import datetime
+IST = pytz.timezone('Asia/Kolkata')
 
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 CHAT_ID = os.environ["CHAT_ID"]
@@ -123,6 +123,16 @@ def send_telegram(message):
             "parse_mode": "HTML"
         }, timeout=10)
     except Exception as e:
+def is_market_session():
+    now = datetime.now(IST)
+    # Weekend par news band (Sat=5, Sun=6)
+    if now.weekday() >= 5:
+        return False
+    # Raat 10 PM se subah 7 AM tak news band
+    if now.hour < 7 or now.hour >= 22:
+        return False
+    return True
+ 
         print(f"Telegram error: {e}")
 
 def check_news_relevance(title):
@@ -238,3 +248,22 @@ def main():
 
 if __name__ == "__main__":
     main()
+def main():
+    print("🚀 News Bot Started...")
+    sent_news = []
+    
+    while True:
+        try:
+            if is_market_session():
+                # Purana fetching logic yahan rahega...
+                # ... (feed fetch karne wala code)
+                
+                # Anti-Spam gap
+                time.sleep(10) # 10 second ka gap har news ke beech
+            else:
+                print("😴 Market Closed: News alerts paused.")
+                time.sleep(3600) # 1 ghanta wait karega
+        except Exception as e:
+            print(f"Error: {e}")
+            time.sleep(60)
+            
