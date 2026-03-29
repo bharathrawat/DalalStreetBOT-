@@ -17,6 +17,7 @@ ANGEL_TOTP = os.environ.get("ANGEL_TOTP")
 
 client = Groq(api_key=GROQ_API_KEY)
 angel_token = None
+last_heartbeat_day = None
 last_login_day = None
 SENT_NEWS_FILE = "sent_news.json"
 
@@ -88,6 +89,29 @@ def scanner_engine():
     print("📈 Scanner Engine: LIVE")
     while True:
         try:
+            def scanner_engine():
+    print("📈 Scanner Engine: LIVE")
+    while True:
+        try:
+            # --- YAHAN PASTE KAREIN (Try ke thik niche) ---
+            global last_heartbeat_day
+            now = datetime.now(IST)
+            if now.hour == 9 and now.minute == 0 and last_heartbeat_day != now.date():
+                heartbeat_msg = (
+                    "🌞 <b>Good Morning Bharat!</b>\n\n"
+                    "DalalStreet AI is <b>LIVE</b> and scanning.\n"
+                    "━━━━━━━━━━━━━━━\n"
+                    "✅ News Engine: Active\n"
+                    "✅ Scanner: Ready (9:15 AM)\n"
+                    "🚀 Aaj discipline ke saath trade karenge!"
+                )
+                send_telegram(heartbeat_msg)
+                last_heartbeat_day = now.date()
+            # ---------------------------------------------
+
+            if is_market_open():
+                # ... baaki ka purana code ...
+                
             if is_market_open():
                 if not angel_token or last_login_day != datetime.now(IST).date():
                     angel_login()
