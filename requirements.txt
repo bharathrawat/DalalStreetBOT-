@@ -1,9 +1,10 @@
-yfinance
-groq
 requests
-feedparser
-numpy
 pandas
+numpy
 pyotp
-matplotlib
 pytz
+yfinance
+feedparser
+scipy
+matplotlib
+groq
