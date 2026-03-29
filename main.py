@@ -1,4 +1,4 @@
-import os
+import os, pytz
 import requests
 import pandas as pd
 import numpy as np
@@ -12,7 +12,6 @@ import matplotlib.pyplot as plt
 from io import BytesIO
 from groq import Groq
 from datetime import datetime, timedelta
-
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 GROQ_API_KEY = os.environ["GROQ_API_KEY"]
 CHAT_ID = os.environ["CHAT_ID"]
@@ -20,6 +19,22 @@ ANGEL_API_KEY = os.environ["ANGEL_API_KEY"]
 ANGEL_CLIENT_ID = os.environ["ANGEL_CLIENT_ID"]
 ANGEL_PASSWORD = os.environ["ANGEL_PASSWORD"]
 ANGEL_TOTP = os.environ["ANGEL_TOTP"]
+IST = pytz.timezone('Asia/Kolkata')
+
+def is_market_open():
+    now = datetime.now(IST)
+    # 1. Weekend Check (Sat=5, Sun=6)
+    if now.weekday() >= 5:
+        return False, "OFF: Aaj Weekend hai, Market band hai."
+    
+    # 2. Trading Hours (9:00 AM se 3:45 PM)
+    market_start = now.replace(hour=9, minute=0, second=0, microsecond=0)
+    market_end = now.replace(hour=15, minute=45, second=0, microsecond=0)
+    
+    if not (market_start <= now <= market_end):
+        return False, "OFF: Market hours khatam ho chuke hain."
+        
+    return True, "ON: Market Active hai!"
 
 client = Groq(api_key=GROQ_API_KEY)
 
@@ -1377,3 +1392,23 @@ def main():
 
 if __name__ == "__main__":
     main()
+def main():
+    print("🚀 DalalStreet Bot Started")
+    while True:
+        try:
+            status, message = is_market_open()
+            
+            if status:
+                # Agar market ON hai, tabhi scan karega
+                # Yahan aapka angel_login() aur baaki logic aayega
+                print(f"✅ {message} Scanning stocks...")
+                time.sleep(30 * 60) # 30 min ka break
+            else:
+                # Agar market OFF hai (Jaise aaj Sunday hai)
+                print(f"😴 {message} Agle check ka wait kar raha hoon...")
+                time.sleep(3600) # Har 1 ghante mein check karega
+                
+        except Exception as e:
+            print(f"Error: {e}")
+            time.sleep(300)
+            
